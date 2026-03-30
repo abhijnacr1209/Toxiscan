@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ToxAI — Drug Toxicity Prediction Platform</title>
+  <meta name="description" content="AI-powered drug toxicity prediction using molecular descriptors, Graph Neural Networks, and Explainable AI. Predict Tox21 endpoints from SMILES structures." />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <!-- 3Dmol.js for 3D molecular viewer -->
+  <script src="https://3dmol.org/build/3Dmol-min.js"></script>
+
+  <!-- Marked.js for markdown in chatbot -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- ================================================
+     NAVBAR
+================================================ -->
+<nav class="navbar" id="navbar">
+  <div class="nav-brand">
+    <div class="nav-logo">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+        <circle cx="14" cy="14" r="13" stroke="url(#grad1)" stroke-width="2"/>
+        <circle cx="14" cy="14" r="4" fill="url(#grad1)"/>
+        <line x1="14" y1="1" x2="14" y2="8" stroke="url(#grad1)" stroke-width="2"/>
+        <line x1="14" y1="20" x2="14" y2="27" stroke="url(#grad1)" stroke-width="2"/>
+        <line x1="1" y1="14" x2="8" y2="14" stroke="url(#grad1)" stroke-width="2"/>
+        <line x1="20" y1="14" x2="27" y2="14" stroke="url(#grad1)" stroke-width="2"/>
+        <defs>
+          <linearGradient id="grad1" x1="0" y1="0" x2="28" y2="28" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#6C63FF"/>
+            <stop offset="100%" stop-color="#3ECFCF"/>
+          </linearGradient>
+        </defs>
+      </svg>
+      <span class="brand-text">Tox<span class="brand-accent">AI</span></span>
+    </div>
+    <div class="nav-tagline">Drug Toxicity Prediction Platform</div>
+  </div>
+
+  <div class="nav-tabs" id="navTabs">
+    <button class="nav-tab active" data-tab="home" id="tab-home">
+      <span class="tab-icon">⚗️</span> Home
+    </button>
+    <button class="nav-tab" data-tab="analyze" id="tab-analyze">
+      <span class="tab-icon">🔬</span> Analyze
+    </button>
+    <button class="nav-tab" data-tab="data" id="tab-data">
+      <span class="tab-icon">📊</span> Data Insights
+    </button>
+    <button class="nav-tab" data-tab="batch" id="tab-batch">
+      <span class="tab-icon">📋</span> Batch Predict
+    </button>
+    <button class="nav-tab" data-tab="reports" id="tab-reports">
+      <span class="tab-icon">📄</span> Reports
+    </button>
+  </div>
+
+  <div class="nav-actions">
+    <div class="status-indicator" id="statusIndicator">
+      <span class="status-dot" id="statusDot"></span>
+      <span id="statusText">Connecting...</span>
+    </div>
+    <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+      <span id="themeIcon">☀️</span>
+    </button>
+  </div>
+</nav>
+
+<!-- ================================================
+     NOTIFICATION BANNER
+================================================ -->
+<div class="notification-banner" id="notificationBanner">
+  <span class="notif-icon">⚠️</span>
+  <span id="notifText">High toxicity detected! Compound flags 3 endpoints above 70%.</span>
+  <button class="notif-close" onclick="closeNotification()">×</button>
+</div>
+
+<!-- ================================================
+     MAIN CONTENT
+================================================ -->
+<main class="main-content">
+
+  <!-- ============ TAB: HOME ============ -->
+  <section class="tab-section active" id="section-home">
+    <div class="hero-section">
+      <div class="hero-content">
+        <div class="hero-badge">🧬 AI-Powered Toxicity Prediction</div>
+        <h1 class="hero-title">Predict Drug Toxicity<br /><span class="gradient-text">with Explainable AI</span></h1>
+        <p class="hero-subtitle">
+          Analyze molecular structures across 12 Tox21 endpoints using Random Forest + XGBoost ensemble.
+          Get SHAP explanations, atom-level heatmaps, and downloadable reports — instantly.
+        </p>
+
+        <!-- SMILES Quick Input -->
+        <div class="quick-input-card" id="quickInputCard">
+          <div class="input-label">Enter SMILES Structure</div>
+          <div class="smiles-input-row">
+            <input
+              type="text"
+              id="smilesInputHome"
+              class="smiles-input"
+              placeholder="e.g. CC(=O)Oc1ccccc1C(=O)O (Aspirin)"
+              autocomplete="off"
+            />
+            <button class="btn-predict" id="btnPredictHome" onclick="predictFromHome()">
+              <span class="btn-icon">⚡</span> Predict
+            </button>
+          </div>
+          <div class="quick-examples">
+            <span class="examples-label">Quick load:</span>
+            <button class="example-chip" onclick="loadExample('CC(=O)Oc1ccccc1C(=O)O')">Aspirin</button>
+            <button class="example-chip" onclick="loadExample('CC(C)Cc1ccc(cc1)C(C)C(=O)O')">Ibuprofen</button>
+            <button class="example-chip" onclick="loadExample('CN1CCC[C@H]1c2cccnc2')">Nicotine</button>
+            <button class="example-chip" onclick="loadExample('c1ccc(cc1)O')">Phenol</button>
+            <button class="example-chip" onclick="loadExample('O=C(O)c1ccc(N)cc1')">PABA</button>
+            <button class="example-chip" onclick="loadExample('Clc1ccccc1Cl')">Dichlorobenzene</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-visual">
+        <div class="molecule-preview-card">
+          <div class="preview-title">Molecule Preview</div>
+          <div class="mol-viewer-container" id="molViewerHome">
+            <div class="mol-placeholder">
+              <div class="mol-placeholder-icon">⬡</div>
+              <div>Enter a SMILES to preview</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STATS ROW -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-icon">🧪</div>
+        <div class="stat-value" id="statCompounds">~12,000</div>
+        <div class="stat-label">Training Compounds</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🎯</div>
+        <div class="stat-value" id="statEndpoints">12</div>
+        <div class="stat-label">Tox21 Endpoints</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">📈</div>
+        <div class="stat-value" id="statAUC">—</div>
+        <div class="stat-label">Mean AUC-ROC</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">⚙️</div>
+        <div class="stat-value">RF + XGB</div>
+        <div class="stat-label">Ensemble Model</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🔍</div>
+        <div class="stat-value" id="statFeatures">200+</div>
+        <div class="stat-label">Molecular Descriptors</div>
+      </div>
+    </div>
+
+    <!-- FEATURE CARDS -->
+    <div class="features-grid">
+      <div class="feature-card" onclick="switchTab('analyze')">
+        <div class="feature-icon">🔬</div>
+        <div class="feature-title">Toxicity Prediction</div>
+        <div class="feature-desc">Predict all 12 Tox21 endpoints from a SMILES string with confidence scores</div>
+      </div>
+      <div class="feature-card" onclick="switchTab('analyze')">
+        <div class="feature-icon">🧠</div>
+        <div class="feature-title">Explainable AI</div>
+        <div class="feature-desc">SHAP values reveal which molecular descriptors drive toxicity predictions</div>
+      </div>
+      <div class="feature-card" onclick="switchTab('analyze')">
+        <div class="feature-icon">🎨</div>
+        <div class="feature-title">Atom Heatmap</div>
+        <div class="feature-desc">Color-coded atoms show which parts of the molecule contribute to toxicity</div>
+      </div>
+      <div class="feature-card" onclick="switchTab('analyze')">
+        <div class="feature-icon">🔎</div>
+        <div class="feature-title">Similarity Search</div>
+        <div class="feature-desc">Find structurally similar compounds and compare their toxicity profiles</div>
+      </div>
+      <div class="feature-card" onclick="switchTab('data')">
+        <div class="feature-icon">📊</div>
+        <div class="feature-title">Data Visualization</div>
+        <div class="feature-desc">Chemical space projections, property distributions, and endpoint correlations</div>
+      </div>
+      <div class="feature-card" onclick="switchTab('reports')">
+        <div class="feature-icon">📄</div>
+        <div class="feature-title">PDF Reports</div>
+        <div class="feature-desc">One-click professional toxicity reports with all analysis results</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TAB: ANALYZE ============ -->
+  <section class="tab-section" id="section-analyze">
+    <div class="analyze-layout">
+
+      <!-- LEFT PANEL: Input -->
+      <div class="analyze-sidebar">
+        <div class="panel-card">
+          <div class="panel-header">
+            <span class="panel-icon">⚗️</span>
+            <span>Compound Input</span>
+          </div>
+
+          <div class="input-group">
+            <label class="input-label-sm">SMILES String</label>
+            <div class="smiles-input-wrap">
+              <textarea
+                id="smilesInputAnalyze"
+                class="smiles-textarea"
+                rows="3"
+                placeholder="Enter SMILES... e.g. CC(=O)Oc1ccccc1C(=O)O"
+              ></textarea>
+              <button class="btn-clear" onclick="clearInput()" title="Clear">✕</button>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label class="input-label-sm">Model Selection</label>
+            <select class="model-select" id="modelSelect">
+              <option value="ensemble">🏆 Ensemble (RF + XGBoost)</option>
+              <option value="rf">🌲 Random Forest</option>
+              <option value="xgb">⚡ XGBoost</option>
+            </select>
+          </div>
+
+          <div class="input-group">
+            <label class="input-label-sm">Explain Endpoint</label>
+            <select class="model-select" id="endpointSelect">
+              <option value="NR-AhR">NR-AhR (Aryl Hydrocarbon Receptor)</option>
+              <option value="NR-AR">NR-AR (Androgen Receptor)</option>
+              <option value="NR-AR-LBD">NR-AR-LBD (AR Binding Domain)</option>
+              <option value="NR-Aromatase">NR-Aromatase</option>
+              <option value="NR-ER">NR-ER (Estrogen Receptor)</option>
+              <option value="NR-ER-LBD">NR-ER-LBD (ER Binding Domain)</option>
+              <option value="NR-PPAR-gamma">NR-PPAR-gamma</option>
+              <option value="SR-ARE">SR-ARE (Oxidative Stress)</option>
+              <option value="SR-ATAD5">SR-ATAD5 (Genotoxicity)</option>
+              <option value="SR-HSE">SR-HSE (Heat Shock)</option>
+              <option value="SR-MMP">SR-MMP (Mitochondrial)</option>
+              <option value="SR-p53">SR-p53 (DNA Damage)</option>
+            </select>
+          </div>
+
+          <button class="btn-full btn-predict-main" id="btnPredict" onclick="runFullAnalysis()">
+            <span class="btn-spinner" id="predictSpinner" style="display:none">⏳</span>
+            <span id="btnPredictText">⚡ Run Full Analysis</span>
+          </button>
+
+          <div class="quick-examples-v">
+            <div class="examples-title">Example Compounds</div>
+            <button class="example-item" onclick="setSmiles('CC(=O)Oc1ccccc1C(=O)O')">💊 Aspirin</button>
+            <button class="example-item" onclick="setSmiles('CC(C)Cc1ccc(cc1)C(C)C(=O)O')">💊 Ibuprofen</button>
+            <button class="example-item" onclick="setSmiles('CN1CCC[C@H]1c2cccnc2')">⚗️ Nicotine</button>
+            <button class="example-item" onclick="setSmiles('c1ccc(cc1)O')">🧪 Phenol</button>
+            <button class="example-item" onclick="setSmiles('[N+](=O)[O-]c1ccc(Cl)cc1')">⚠️ Nitrochlorobenzene</button>
+            <button class="example-item" onclick="setSmiles('Clc1ccc(Cl)c(Cl)c1')">⚠️ Trichlorobenzene</button>
+          </div>
+        </div>
+
+        <!-- Molecule 2D Viewer -->
+        <div class="panel-card">
+          <div class="panel-header">
+            <span class="panel-icon">⬡</span>
+            <span>2D Structure</span>
+            <div class="viewer-toggle">
+              <button class="toggle-btn active" id="btn2D" onclick="switchViewer('2d')">2D</button>
+              <button class="toggle-btn" id="btn3D" onclick="switchViewer('3d')">3D</button>
+            </div>
+          </div>
+          <div class="mol-viewer-2d" id="molViewer2D">
+            <div class="mol-placeholder">
+              <div class="mol-placeholder-icon">⬡</div>
+              <div>Structure loads after prediction</div>
+            </div>
+          </div>
+          <div class="mol-viewer-3d" id="molViewer3D" style="display:none;">
+            <div class="viewer-3d-container" id="viewer3DContainer"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT PANEL: Results -->
+      <div class="analyze-main" id="analyzeMain">
+
+        <!-- PLACEHOLDER (before prediction) -->
+        <div class="results-placeholder" id="resultsPlaceholder">
+          <div class="placeholder-icon">🔬</div>
+          <div class="placeholder-title">Ready for Analysis</div>
+          <div class="placeholder-desc">Enter a SMILES string and click "Run Full Analysis" to see toxicity predictions, SHAP explanations, atom heatmaps, and similar compounds.</div>
+        </div>
+
+        <!-- RESULTS (after prediction) -->
+        <div class="results-container" id="resultsContainer" style="display:none;">
+
+          <!-- Risk Banner -->
+          <div class="risk-banner" id="riskBanner">
+            <div class="risk-icon" id="riskIcon">🟢</div>
+            <div class="risk-info">
+              <div class="risk-level" id="riskLevel">LOW RISK</div>
+              <div class="risk-detail" id="riskDetail">Overall toxicity score: 0.12</div>
+            </div>
+            <div class="risk-scores">
+              <div class="risk-score-item">
+                <div class="risk-score-val" id="riskScoreMax">0.00</div>
+                <div class="risk-score-lbl">Max Score</div>
+              </div>
+              <div class="risk-score-item">
+                <div class="risk-score-val" id="riskScoreAvg">0.00</div>
+                <div class="risk-score-lbl">Avg Score</div>
+              </div>
+              <div class="risk-score-item">
+                <div class="risk-score-val" id="riskHighCount">0</div>
+                <div class="risk-score-lbl">High Risk</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Results Grid -->
+          <div class="results-grid">
+
+            <!-- Toxicity Endpoint Cards -->
+            <div class="result-panel full-width">
+              <div class="result-panel-header">
+                <span>📊 Multi-Endpoint Toxicity Predictions</span>
+                <div class="panel-controls">
+                  <button class="view-btn active" id="viewCards" onclick="switchView('cards')">Cards</button>
+                  <button class="view-btn" id="viewChart" onclick="switchView('chart')">Chart</button>
+                  <button class="view-btn" id="viewRadar" onclick="switchView('radar')">Radar</button>
+                </div>
+              </div>
+
+              <!-- Cards View -->
+              <div id="endpointCardsView">
+                <div class="endpoint-grid" id="endpointCards"></div>
+              </div>
+
+              <!-- Bar Chart View -->
+              <div id="endpointChartView" style="display:none;">
+                <div class="chart-container">
+                  <canvas id="toxicityBarChart"></canvas>
+                </div>
+              </div>
+
+              <!-- Radar Chart View -->
+              <div id="endpointRadarView" style="display:none;">
+                <div class="chart-container">
+                  <canvas id="toxicityRadarChart"></canvas>
+                </div>
+              </div>
+            </div>
+
+            <!-- ADMET Panel -->
+            <div class="result-panel">
+              <div class="result-panel-header">
+                <span>💊 ADMET Profile</span>
+              </div>
+              <div id="admetGrid" class="admet-grid"></div>
+              <div class="chart-container chart-small">
+                <canvas id="lipinskiRadar"></canvas>
+              </div>
+            </div>
+
+            <!-- Structural Alerts Panel -->
+            <div class="result-panel">
+              <div class="result-panel-header">
+                <span>⚠️ Structural Alerts</span>
+              </div>
+              <div id="alertsPanel" class="alerts-panel"></div>
+            </div>
+
+            <!-- SHAP Explanation Panel -->
+            <div class="result-panel full-width">
+              <div class="result-panel-header">
+                <span>🧠 Explainable AI — Feature Importance</span>
+                <span class="endpoint-badge" id="explainEndpointBadge"></span>
+              </div>
+              <div id="shapPanel" class="shap-panel">
+                <div class="shap-loading">Computing SHAP explanations...</div>
+              </div>
+            </div>
+
+            <!-- Atom Heatmap Panel -->
+            <div class="result-panel">
+              <div class="result-panel-header">
+                <span>🎨 Atom Toxicity Heatmap</span>
+              </div>
+              <div class="heatmap-panel" id="heatmapPanel">
+                <div class="mol-viewer-2d" id="heatmapMolViewer">
+                  <div class="mol-placeholder">Computing atom attribution...</div>
+                </div>
+                <div class="heatmap-legend">
+                  <div class="legend-gradient"></div>
+                  <div class="legend-labels">
+                    <span>Safe</span><span>Moderate</span><span>Toxic</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Similar Compounds Panel -->
+            <div class="result-panel">
+              <div class="result-panel-header">
+                <span>🔎 Similar Compounds</span>
+                <span class="similar-count" id="similarCount"></span>
+              </div>
+              <div id="similarPanel" class="similar-panel">
+                <div class="similar-loading">Searching database...</div>
+              </div>
+            </div>
+
+          </div><!-- end results-grid -->
+        </div><!-- end results-container -->
+      </div><!-- end analyze-main -->
+    </div><!-- end analyze-layout -->
+  </section>
+
+  <!-- ============ TAB: DATA INSIGHTS ============ -->
+  <section class="tab-section" id="section-data">
+    <div class="data-header">
+      <h2 class="section-title">Data Insights & Visualizations</h2>
+      <p class="section-subtitle">Explore relationships between molecular properties and toxicity across the dataset</p>
+    </div>
+
+    <div class="data-grid">
+      <!-- Model Performance -->
+      <div class="data-card full-width">
+        <div class="data-card-header">
+          <span>🏆 Model Performance — AUC-ROC per Endpoint</span>
+          <button class="btn-sm" onclick="loadEvaluation()">↻ Refresh</button>
+        </div>
+        <div class="chart-container chart-tall">
+          <canvas id="performanceChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Property Distribution -->
+      <div class="data-card">
+        <div class="data-card-header">
+          <span>📈 Molecular Weight Distribution</span>
+        </div>
+        <div class="chart-container">
+          <canvas id="mwDistChart"></canvas>
+        </div>
+      </div>
+
+      <!-- LogP Distribution -->
+      <div class="data-card">
+        <div class="data-card-header">
+          <span>📈 LogP Distribution</span>
+        </div>
+        <div class="chart-container">
+          <canvas id="logpDistChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Chemical Space -->
+      <div class="data-card full-width">
+        <div class="data-card-header">
+          <span>🗺️ Chemical Space Projection (PCA)</span>
+          <button class="btn-sm" onclick="loadChemicalSpace()">↻ Load</button>
+        </div>
+        <div class="chart-container chart-tall">
+          <canvas id="chemSpaceChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Endpoint Correlation -->
+      <div class="data-card full-width">
+        <div class="data-card-header">
+          <span>🔗 Toxicity Endpoint Summary</span>
+        </div>
+        <div id="endpointSummaryTable" class="endpoint-summary"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TAB: BATCH PREDICT ============ -->
+  <section class="tab-section" id="section-batch">
+    <div class="batch-layout">
+      <div class="batch-header">
+        <h2 class="section-title">Batch Toxicity Prediction</h2>
+        <p class="section-subtitle">Predict multiple compounds at once via CSV upload or text input</p>
+      </div>
+
+      <div class="batch-grid">
+        <!-- Upload Card -->
+        <div class="batch-card">
+          <div class="batch-card-header">📤 Upload CSV File</div>
+          <div class="upload-zone" id="uploadZone"
+            ondragover="event.preventDefault(); this.classList.add('drag-over')"
+            ondragleave="this.classList.remove('drag-over')"
+            ondrop="handleFileDrop(event)">
+            <div class="upload-icon">📁</div>
+            <div class="upload-text">Drag & drop CSV here</div>
+            <div class="upload-hint">or click to browse</div>
+            <input type="file" id="csvFile" accept=".csv" style="display:none" onchange="handleFileSelect(event)" />
+            <button class="btn-sm" onclick="document.getElementById('csvFile').click()">Browse Files</button>
+          </div>
+          <div class="upload-format">
+            <div class="format-title">Required CSV format:</div>
+            <code class="format-code">smiles<br/>CC(=O)Oc1ccccc1C(=O)O<br/>CC(C)Cc1ccc(cc1)C(C)C(=O)O</code>
+          </div>
+        </div>
+
+        <!-- Text Input Card -->
+        <div class="batch-card">
+          <div class="batch-card-header">✏️ Paste SMILES (one per line)</div>
+          <textarea
+            id="batchSmilesInput"
+            class="batch-textarea"
+            placeholder="CC(=O)Oc1ccccc1C(=O)O&#10;CC(C)Cc1ccc(cc1)C(C)C(=O)O&#10;CN1CCC[C@H]1c2cccnc2"
+            rows="10"
+          ></textarea>
+          <button class="btn-full btn-predict-main" onclick="runBatchFromText()">
+            ⚡ Run Batch Prediction
+          </button>
+        </div>
+      </div>
+
+      <!-- Batch Results -->
+      <div class="batch-results" id="batchResults" style="display:none;">
+        <div class="batch-results-header">
+          <div class="batch-stats" id="batchStats"></div>
+          <button class="btn-sm" onclick="downloadBatchResults()">⬇ Download CSV</button>
+        </div>
+        <div class="batch-table-wrapper">
+          <table class="batch-table" id="batchTable">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>SMILES</th>
+                <th>Risk Level</th>
+                <th>Overall Score</th>
+                <th>High Risk Endpoints</th>
+                <th>Detail</th>
+              </tr>
+            </thead>
+            <tbody id="batchTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TAB: REPORTS ============ -->
+  <section class="tab-section" id="section-reports">
+    <div class="reports-layout">
+      <div class="reports-header">
+        <h2 class="section-title">Report Generation</h2>
+        <p class="section-subtitle">Generate professional PDF toxicity reports with all analysis results</p>
+      </div>
+
+      <div class="reports-grid">
+        <div class="report-card">
+          <div class="report-card-icon">📄</div>
+          <div class="report-card-title">Full Toxicity Report</div>
+          <div class="report-card-desc">
+            Complete analysis including toxicity predictions, ADMET profile, feature importance, structural alerts, and similar compounds.
+          </div>
+          <div class="report-smiles-section">
+            <input
+              type="text"
+              id="reportSmilesInput"
+              class="smiles-input"
+              placeholder="Enter SMILES (or uses last prediction)"
+            />
+          </div>
+          <button class="btn-full btn-report" onclick="generateReport()">
+            <span id="reportBtnText">📥 Generate & Download PDF</span>
+          </button>
+        </div>
+
+        <div class="report-card">
+          <div class="report-card-icon">📊</div>
+          <div class="report-card-title">Last Analysis Report</div>
+          <div class="report-card-desc">
+            Quickly download a PDF report for the most recently analyzed compound.
+          </div>
+          <div class="last-compound-info" id="lastCompoundInfo">
+            No compound analyzed yet. Run a prediction first.
+          </div>
+          <button class="btn-full btn-report" onclick="generateLastReport()" id="btnLastReport" disabled>
+            📥 Download Last Analysis Report
+          </button>
+        </div>
+
+        <div class="report-preview-card">
+          <div class="report-preview-header">📋 Report Contents</div>
+          <ul class="report-contents-list">
+            <li>✅ Compound structure (2D diagram)</li>
+            <li>✅ All 12 Tox21 endpoint predictions</li>
+            <li>✅ Color-coded risk assessment table</li>
+            <li>✅ ADMET properties (Lipinski, TPSA, LogP, etc)</li>
+            <li>✅ Structural alerts (PAINS, reactive groups)</li>
+            <li>✅ Top 10 feature importance descriptors</li>
+            <li>✅ Similar compound comparison</li>
+            <li>✅ Scientific disclaimer</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ================================================
+     CHATBOT WIDGET
+================================================ -->
+<div class="chatbot-widget" id="chatbotWidget">
+  <button class="chatbot-toggle" id="chatbotToggle" onclick="toggleChatbot()">
+    <span id="chatbotToggleIcon">💬</span>
+  </button>
+
+  <div class="chatbot-panel" id="chatbotPanel" style="display:none;">
+    <div class="chatbot-header">
+      <div class="chatbot-avatar">🤖</div>
+      <div class="chatbot-info">
+        <div class="chatbot-name">ToxAI Assistant</div>
+        <div class="chatbot-status">● Online</div>
+      </div>
+      <button class="chatbot-close" onclick="toggleChatbot()">×</button>
+    </div>
+
+    <div class="chatbot-messages" id="chatMessages">
+      <div class="chat-msg bot">
+        <div class="chat-bubble">
+          👋 Hi! I'm the <b>ToxAI Assistant</b>. I can explain toxicity predictions, molecular properties, and ML concepts.<br/><br/>
+          Try: <i>"What is LogP?"</i> or <i>"Explain SHAP values"</i>
+        </div>
+      </div>
+    </div>
+
+    <div class="chatbot-input-row">
+      <input
+        type="text"
+        id="chatInput"
+        class="chat-input"
+        placeholder="Ask about toxicity, chemistry, AI..."
+        onkeypress="if(event.key==='Enter') sendChatMessage()"
+      />
+      <button class="chat-send-btn" onclick="sendChatMessage()">➤</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================
+     LOADING OVERLAY
+================================================ -->
+<div class="loading-overlay" id="loadingOverlay" style="display:none;">
+  <div class="loading-content">
+    <div class="loading-spinner"></div>
+    <div class="loading-text" id="loadingText">Analyzing compound...</div>
+    <div class="loading-subtext">Computing 200+ molecular descriptors</div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
