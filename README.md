@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # 🧬 Advanced Drug Toxicity Prediction System
 
 > A cutting-edge, production-grade AI platform for comprehensive drug toxicity prediction featuring ensemble ML models, explainable AI, interactive molecular visualization, and real-time analysis capabilities.
@@ -426,3 +427,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 **Built with ❤️ for the drug discovery community**
+=======
+# Toxiscan
+Drug toxicity prediction app
+>>>>>>> d3407291622d92b5633056d174cdaac7a6f605cd
