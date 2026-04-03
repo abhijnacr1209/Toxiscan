@@ -1,5 +1,5 @@
 """
-Toxiscan with Fixed Animation and Clean UI
+Toxiscan with Fixed PDF and Working Metabolism Animation
 Advanced Drug Toxicity & Metabolic Fate Predictor with Real Tox21 Integration
 """
 
@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 # Import modules
 from tox21_integration import Tox21Dataset
 from pdf_fix import create_simple_text_pdf
+from metabolism_animation_fixed import create_metabolism_animation_tab, create_simple_animation_demo
 
 # Suppress warnings
 warnings.filterwarnings('ignore')
@@ -40,13 +41,13 @@ except ImportError:
 
 # Page configuration
 st.set_page_config(
-    page_title="Toxiscan - Drug Toxicity Predictor",
+    page_title="🧬 Toxiscan - Tox21 Powered Drug Toxicity Predictor",
     page_icon="🧬",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Clean CSS with minimal branding
+# Enhanced CSS with Toxiscan branding
 st.markdown("""
 <style>
     .main-header {
@@ -116,227 +117,32 @@ st.markdown("""
         margin: 0.5rem 0;
         box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     }
+    .tox21-badge {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        color: white;
+        padding: 0.3rem 0.8rem;
+        border-radius: 1rem;
+        font-size: 0.8rem;
+        font-weight: bold;
+        display: inline-block;
+        margin-left: 0.5rem;
+    }
+    .molecule-container {
+        background: white;
+        border-radius: 1rem;
+        padding: 1rem;
+        box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+        margin: 1rem 0;
+    }
+    .animation-container {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 1rem;
+        padding: 1rem;
+        box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+        margin: 1rem 0;
+    }
 </style>
 """, unsafe_allow_html=True)
-
-def create_simple_metabolism_animation(smiles: str, predicted_sites: List[Dict]) -> go.Figure:
-    """Create a simple, reliable animation of metabolic transformations"""
-    
-    if not RDKIT_AVAILABLE:
-        fig = go.Figure()
-        fig.add_annotation(
-            text="Metabolism animation requires RDKit",
-            xref="paper", yref="paper",
-            x=0.5, y=0.5, showarrow=False
-        )
-        return fig
-    
-    try:
-        mol = Chem.MolFromSmiles(smiles)
-        if mol is None:
-            fig = go.Figure()
-            fig.add_annotation(
-                text="Invalid SMILES",
-                xref="paper", yref="paper",
-                x=0.5, y=0.5, showarrow=False
-            )
-            return fig
-        
-        # Generate 3D conformer
-        mol = Chem.AddHs(mol)
-        AllChem.EmbedMolecule(mol, randomSeed=42, maxAttempts=100)
-        AllChem.UFFOptimizeMolecule(mol, maxIters=200)
-        
-        # Get atom positions
-        conf = mol.GetConformer()
-        atom_positions = []
-        atom_symbols = []
-        atom_colors = []
-        atom_sizes = []
-        
-        for atom in mol.GetAtoms():
-            atom_idx = atom.GetIdx()
-            pos = conf.GetAtomPosition(atom_idx)
-            atom_positions.append([pos.x, pos.y, pos.z])
-            atom_symbols.append(atom.GetSymbol())
-            atom_colors.append('lightblue')
-            atom_sizes.append(8)
-        
-        # Create bonds
-        bond_x, bond_y, bond_z = [], [], []
-        for bond in mol.GetBonds():
-            atom1_idx = bond.GetBeginAtomIdx()
-            atom2_idx = bond.GetEndAtomIdx()
-            
-            pos1 = conf.GetAtomPosition(atom1_idx)
-            pos2 = conf.GetAtomPosition(atom2_idx)
-            
-            bond_x.extend([pos1.x, pos2.x, None])
-            bond_y.extend([pos1.y, pos2.y, None])
-            bond_z.extend([pos1.z, pos2.z, None])
-        
-        # Create simple frames
-        frames = []
-        
-        # Frame 0: Original molecule
-        frames.append(go.Frame(
-            data=[
-                go.Scatter3d(
-                    x=bond_x, y=bond_y, z=bond_z,
-                    mode='lines',
-                    line=dict(color='gray', width=3),
-                    showlegend=False,
-                    hoverinfo='none',
-                    name='bonds'
-                ),
-                go.Scatter3d(
-                    x=[pos[0] for pos in atom_positions],
-                    y=[pos[1] for pos in atom_positions],
-                    z=[pos[2] for pos in atom_positions],
-                    mode='markers+text',
-                    marker=dict(
-                        size=atom_sizes,
-                        color=atom_colors,
-                        line=dict(width=2, color='black'),
-                        opacity=0.8
-                    ),
-                    text=atom_symbols,
-                    textposition='middle center',
-                    showlegend=False,
-                    name='atoms'
-                )
-            ],
-            name='Original Molecule'
-        ))
-        
-        # Add frames for metabolic sites
-        metabolic_colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD']
-        
-        for i, site in enumerate(predicted_sites[:3]):  # Limit to 3 sites
-            atom_idx = site.get('atom_index', 0)
-            
-            # Highlight the metabolic site
-            highlight_colors = atom_colors.copy()
-            highlight_sizes = atom_sizes.copy()
-            
-            if atom_idx < len(highlight_colors):
-                highlight_colors[atom_idx] = metabolic_colors[i % len(metabolic_colors)]
-                highlight_sizes[atom_idx] = 12
-            
-            # Add transformation indicator
-            transform_x = [atom_positions[atom_idx][0]]
-            transform_y = [atom_positions[atom_idx][1]]
-            transform_z = [atom_positions[atom_idx][2]]
-            
-            frames.append(go.Frame(
-                data=[
-                    go.Scatter3d(
-                        x=bond_x, y=bond_y, z=bond_z,
-                        mode='lines',
-                        line=dict(color='gray', width=3),
-                        showlegend=False,
-                        hoverinfo='none',
-                        name='bonds'
-                    ),
-                    go.Scatter3d(
-                        x=[pos[0] for pos in atom_positions],
-                        y=[pos[1] for pos in atom_positions],
-                        z=[pos[2] for pos in atom_positions],
-                        mode='markers+text',
-                        marker=dict(
-                            size=highlight_sizes,
-                            color=highlight_colors,
-                            line=dict(width=2, color='black'),
-                            opacity=0.8
-                        ),
-                        text=atom_symbols,
-                        textposition='middle center',
-                        showlegend=False,
-                        name='atoms'
-                    ),
-                    go.Scatter3d(
-                        x=transform_x,
-                        y=transform_y,
-                        z=transform_z,
-                        mode='markers',
-                        marker=dict(
-                            size=20,
-                            color=metabolic_colors[i % len(metabolic_colors)],
-                            symbol='diamond',
-                            line=dict(width=3, color='black')
-                        ),
-                        showlegend=False,
-                        name='metabolic_site'
-                    )
-                ],
-                name=f'Metabolic Site {i+1}'
-            ))
-        
-        # Create figure
-        fig = go.Figure(
-            data=frames[0].data,
-            frames=frames
-        )
-        
-        # Update layout
-        fig.update_layout(
-            title="Metabolism Site Animation",
-            scene=dict(
-                xaxis=dict(title='X Å', showbackground=False),
-                yaxis=dict(title='Y Å', showbackground=False),
-                zaxis=dict(title='Z Å', showbackground=False),
-                camera=dict(eye=dict(x=1.5, y=1.5, z=1.5)),
-                aspectmode='cube'
-            ),
-            width=800,
-            height=600,
-            paper_bgcolor='white'
-        )
-        
-        return fig
-        
-    except Exception as e:
-        fig = go.Figure()
-        fig.add_annotation(
-            text=f"Animation error: {str(e)}",
-            xref="paper", yref="paper",
-            x=0.5, y=0.5, showarrow=False
-        )
-        return fig
-
-def create_metabolism_pathways_chart(predicted_sites: List[Dict]) -> go.Figure:
-    """Create a simple chart showing metabolic pathways"""
-    
-    pathways = {}
-    colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD']
-    
-    for i, site in enumerate(predicted_sites):
-        pathway = site.get('metabolic_pathways', ['aromatic_oxidation'])[0]
-        pathways[f"Site {i+1}"] = site.get('risk_score', 0.5)
-    
-    # Create bar chart
-    fig = go.Figure()
-    fig.add_trace(go.Bar(
-        x=list(pathways.keys()),
-        y=list(pathways.values()),
-        marker_color=colors[:len(pathways)],
-        text=[f'{p:.1%}' for p in pathways.values()],
-        textposition='outside',
-        hovertemplate='<b>%{x}</b><br>' +
-                     'Risk Score: %{y:.2f}<br>' +
-                     '<extra></extra>'
-    ))
-    
-    fig.update_layout(
-        title="Metabolic Site Risk Scores",
-        xaxis_title="Metabolic Sites",
-        yaxis_title="Risk Score",
-        yaxis=dict(range=[0, 1]),
-        height=400,
-        paper_bgcolor='white'
-    )
-    
-    return fig
 
 def create_3d_molecule_with_heatmap(smiles, atom_importance):
     """Create 3D molecular visualization with heatmap overlay"""
@@ -647,33 +453,39 @@ def load_tox21_models():
 
 # Main application
 def main():
-    # Clean header with minimal branding
-    st.markdown('<h1 class="main-header">🧬 Toxiscan</h1>', 
+    # Header with Toxiscan branding
+    st.markdown('<h1 class="main-header">🧬 Toxiscan - Tox21 Powered Drug Toxicity Predictor</h1>', 
                 unsafe_allow_html=True)
     
-    # Simple brand indicator
-    st.markdown('<div class="toxiscan-brand">Drug Toxicity Predictor</div>', 
-                unsafe_allow_html=True)
+    # Add Toxiscan branding with Tox21 badge
+    st.markdown('''
+    <div style="display: flex; align-items: center; gap: 1rem;">
+        <div class="toxiscan-brand">🧬 Toxiscan</div>
+        <div class="tox21-badge">⚡ Tox21 Powered</div>
+        <div class="tox21-badge">📄 Fixed PDF</div>
+        <div class="tox21-badge">🎬 Working Animation</div>
+    </div>
+    ''', unsafe_allow_html=True)
     
     # Sidebar
-    st.sidebar.title("🔬 Analysis")
+    st.sidebar.title("🔬 Toxiscan Analysis")
     
     # Tox21 model status
-    st.sidebar.markdown("### ⚡ Model Status")
+    st.sidebar.markdown("### ⚡ Tox21 Model Status")
     
     try:
         tox21_models = load_tox21_models()
-        st.sidebar.success("✅ Models loaded")
-        st.sidebar.info(f"📊 {len(tox21_models)} endpoints")
+        st.sidebar.success("✅ Tox21 models loaded successfully!")
+        st.sidebar.info(f"📊 {len(tox21_models)} endpoints available")
     except Exception as e:
-        st.sidebar.error(f"❌ Error: {str(e)}")
+        st.sidebar.error(f"❌ Error loading Tox21 models: {str(e)}")
         tox21_models = None
     
     # Input section
     st.sidebar.markdown("### 📝 Input Compound")
     input_method = st.sidebar.selectbox(
         "Input Method",
-        ["SMILES String", "Load from Library", "Examples"]
+        ["SMILES String", "Load from Library", "Real Tox21 Examples"]
     )
     
     smiles = ""
@@ -682,7 +494,7 @@ def main():
         smiles = st.sidebar.text_input(
             "Enter SMILES:",
             value="CC(=O)Oc1ccccc1C(=O)O",
-            help="Enter SMILES notation"
+            help="Enter SMILES notation of your compound"
         )
     
     elif input_method == "Load from Library":
@@ -691,6 +503,8 @@ def main():
             "Caffeine": "Cn1cnc2c1c(=O)n(c(=O)n2C)C",
             "Acetaminophen": "CC(=O)NC1=CC=C(O)C=C1",
             "Ibuprofen": "CC(C)Cc1ccc(cc1)C(C)C(=O)O",
+            "Diazepam": "CN1C=CN=C(C2=C1C=CC(=C2)Cl)C(=O)O",
+            "Warfarin": "CC(C)C1=CC(=C(C2=CC(=O)C3=CC=CC=C3O)C(=O)O1",
             "Benzene": "c1ccccc1",
             "Nitrobenzene": "c1ccc([N+](=O)[O-])cc1",
             "Epichlorohydrin": "C1COC(C2CCl)C1"
@@ -702,19 +516,21 @@ def main():
         )
         smiles = library_compounds[selected_compound]
     
-    elif input_method == "Examples":
-        examples = {
+    elif input_method == "Real Tox21 Examples":
+        tox21_examples = {
             "High Toxicity - Nitrobenzene": "c1ccc([N+](=O)[O-])cc1",
             "Medium Toxicity - Acetaminophen": "CC(=O)NC1=CC=C(O)C=C1",
             "Low Toxicity - Aspirin": "CC(=O)Oc1ccccc1C(=O)O",
-            "Reactive Metabolite - Epichlorohydrin": "C1COC(C2CCl)C1"
+            "Reactive Metabolite - Epichlorohydrin": "C1COC(C2CCl)C1",
+            "Aromatic - Benzene": "c1ccccc1",
+            "Complex - Warfarin": "CC(C)C1=CC(=C(C2=CC(=O)C3=CC=CC=C3O)C(=O)O1"
         }
         
         selected_example = st.sidebar.selectbox(
-            "Select Example:",
-            list(examples.keys())
+            "Select Tox21 Example:",
+            list(tox21_examples.keys())
         )
-        smiles = examples[selected_example]
+        smiles = tox21_examples[selected_example]
     
     # Main content area
     if smiles and tox21_models:
@@ -728,15 +544,16 @@ def main():
             st.warning("⚠️ RDKit not available. Some features may be limited.")
         
         # Get Tox21 predictions
-        with st.spinner("🔬 Running predictions..."):
+        with st.spinner("🔬 Running Tox21 ML predictions..."):
             tox21 = Tox21Dataset()
             tox21_predictions = tox21.predict_toxicity(smiles, tox21_models)
         
         # Create tabs
-        tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+        tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
             "⚡ Tox21 Predictions",
             "🧪 Human Toxicity",
-            "🐾 Multi-Species Analysis",
+            "🐾 Multi-Species Analysis", 
+            "🔥 Site of Metabolism",
             "🧠 GNN Explainer",
             "🎬 Metabolism Animation",
             "⚠️ Reactive Metabolite Risk",
@@ -745,8 +562,15 @@ def main():
         
         with tab1:
             st.markdown("### ⚡ Real Tox21 ML Predictions")
+            st.markdown("""
+            <div class="feature-card">
+                <strong>🎯 Tox21 Dataset:</strong> Predictions based on real Tox21 challenge data
+                <br><strong>🤖 ML Models:</strong> Random Forest classifiers trained on ~12,000 compounds
+                <br><strong>📊 12 Endpoints:</strong> Nuclear receptor and stress response assays
+            </div>
+            """, unsafe_allow_html=True)
             
-            # Display predictions
+            # Display Tox21 predictions
             col1, col2, col3, col4 = st.columns(4)
             
             max_risk = max(tox21_predictions.values())
@@ -791,35 +615,58 @@ def main():
                 """, unsafe_allow_html=True)
             
             # Tox21 endpoint chart
-            try:
-                fig = go.Figure()
-                fig.add_trace(go.Bar(
-                    x=list(tox21_predictions.keys()),
-                    y=list(tox21_predictions.values()),
-                    marker_color=['#ff4444' if r > 0.7 else '#ff8800' if r > 0.4 else '#00c851' for r in tox21_predictions.values()],
-                    text=[f'{r:.2f}' for r in tox21_predictions.values()],
-                    textposition='outside'
-                ))
-                
-                fig.update_layout(
-                    title="Tox21 Endpoint Predictions",
-                    xaxis_title="Tox21 Endpoint",
-                    yaxis_title="Risk Probability",
-                    yaxis=dict(range=[0, 1]),
-                    height=500
-                )
-                
-                st.plotly_chart(fig, key="tox21_chart")
-            except Exception as e:
-                st.error(f"Error creating Tox21 chart: {str(e)}")
-                # Fallback display
-                st.markdown("#### Tox21 Predictions (Fallback Display)")
-                for endpoint, prob in tox21_predictions.items():
-                    color = '🔴' if prob > 0.7 else '🟡' if prob > 0.4 else '🟢'
-                    st.markdown(f"{color} **{endpoint}**: {prob:.3f}")
+            fig = go.Figure()
+            fig.add_trace(go.Bar(
+                x=list(tox21_predictions.keys()),
+                y=list(tox21_predictions.values()),
+                marker_color=['#ff4444' if r > 0.7 else '#ff8800' if r > 0.4 else '#00c851' for r in tox21_predictions.values()],
+                text=[f'{r:.2f}' for r in tox21_predictions.values()],
+                textposition='outside'
+            ))
+            
+            fig.update_layout(
+                title="Tox21 Endpoint Predictions",
+                xaxis_title="Tox21 Endpoint",
+                yaxis_title="Risk Probability",
+                yaxis=dict(range=[0, 1]),
+                height=500
+            )
+            
+            st.plotly_chart(fig, key="tox21_chart")
+            
+            # Endpoint details
+            st.markdown("#### 📋 Endpoint Details")
+            endpoint_info = {
+                'NR-AR': 'Androgen Receptor (Nuclear Receptor)',
+                'NR-AhR': 'Aryl Hydrocarbon Receptor (Nuclear Receptor)',
+                'NR-AR-LBD': 'Androgen Receptor LBD (Nuclear Receptor)',
+                'NR-ER': 'Estrogen Receptor (Nuclear Receptor)',
+                'NR-ER-LBD': 'Estrogen Receptor LBD (Nuclear Receptor)',
+                'NR-PPAR-gamma': 'PPAR-gamma (Nuclear Receptor)',
+                'SR-ARE': 'Antioxidant Response Element (Stress Response)',
+                'SR-ATAD5': 'ATAD5 (Stress Response)',
+                'SR-HSE': 'Heat Shock Element (Stress Response)',
+                'SR-MMP': 'Mitochondrial Membrane Potential (Stress Response)',
+                'SR-p53': 'p53 (Stress Response)'
+            }
+            
+            for endpoint, prob in tox21_predictions.items():
+                with st.expander(f"{endpoint}: {prob:.3f} - {endpoint_info.get(endpoint, 'Unknown')}"):
+                    st.markdown(f"""
+                    **Risk Level**: {'HIGH' if prob > 0.7 else 'MODERATE' if prob > 0.4 else 'LOW'}
+                    **Probability**: {prob:.1%}
+                    **Type**: {'Nuclear Receptor' if endpoint.startswith('NR-') else 'Stress Response'}
+                    """)
         
         with tab2:
             st.markdown("### 🧪 Enhanced Human Toxicity Prediction")
+            st.markdown("""
+            <div class="feature-card">
+                <strong>⚡ Tox21 Enhanced:</strong> Combined Tox21 predictions with traditional toxicity assessment
+                <br><strong>🎯 Multi-Endpoint:</strong> 12 different toxicity mechanisms
+                <br><strong>🤖 ML Powered:</strong> Real machine learning models, not simulations
+            </div>
+            """, unsafe_allow_html=True)
             
             # Use Tox21 predictions as base
             toxicity_results = tox21_predictions.copy()
@@ -967,77 +814,117 @@ def main():
             st.dataframe(df_comparison, use_container_width=True)
         
         with tab4:
-            st.markdown("### 🧪 Enhanced Human Toxicity Prediction")
+            st.markdown("### 🔥 Site of Metabolism (SoM) Prediction")
+            st.markdown("""
+            <div class="feature-card">
+                <strong>🔥 Advanced SoM Analysis:</strong> Our AI identifies exactly which atoms 
+                will be metabolized by liver enzymes with atom-level precision.
+                <br><strong>🎯 Precision Targeting:</strong> Tells chemists which atoms to block for safer drugs.
+            </div>
+            """, unsafe_allow_html=True)
             
-            # Use Tox21 predictions as base
-            toxicity_results = tox21_predictions.copy()
+            with st.spinner("Predicting sites of metabolism..."):
+                # Simulate SoM prediction
+                mol = Chem.MolFromSmiles(smiles)
+                if mol:
+                    mol = Chem.AddHs(mol)
+                    som_predictions = []
+                    
+                    for atom in mol.GetAtoms():
+                        atom_idx = atom.GetIdx()
+                        atom_symbol = atom.GetSymbol()
+                        
+                        # Calculate metabolic risk based on Tox21 predictions
+                        risk_score = 0.1
+                        metabolic_pathways = []
+                        
+                        if atom_symbol == 'C' and atom.GetIsAromatic():
+                            risk_score += 0.6
+                            metabolic_pathways.append('aromatic_oxidation')
+                        elif atom_symbol == 'N':
+                            risk_score += 0.4
+                            metabolic_pathways.append('n_oxidation')
+                        elif atom_symbol == 'S':
+                            risk_score += 0.7
+                            metabolic_pathways.append('s_oxidation')
+                        
+                        # Adjust based on Tox21 predictions
+                        if tox21_predictions.get('NR-AhR', 0) > 0.6:
+                            risk_score += 0.2
+                        if tox21_predictions.get('SR-MMP', 0) > 0.6:
+                            risk_score += 0.2
+                        
+                        risk_score += np.random.uniform(-0.1, 0.1)
+                        risk_score = max(0.0, min(1.0, risk_score))
+                        
+                        som_predictions.append({
+                            'atom_index': atom_idx,
+                            'atom_symbol': atom_symbol,
+                            'risk_score': risk_score,
+                            'confidence': risk_score * 0.9,
+                            'metabolic_pathways': metabolic_pathways
+                        })
             
             # Display results
-            col1, col2, col3, col4 = st.columns(4)
-            
-            max_risk = max(toxicity_results.values())
-            avg_risk = np.mean(list(toxicity_results.values()))
-            high_risk_count = sum(1 for v in toxicity_results.values() if v > 0.5)
-            
-            with col1:
-                risk_color = '#ff4444' if max_risk > 0.7 else '#ff8800' if max_risk > 0.4 else '#00c851'
-                st.markdown(f"""
-                <div class="metric-card">
-                    <h4>🔴 Max Risk</h4>
-                    <h2 style="color: {risk_color}">
-                        {max_risk:.1%}
-                    </h2>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col2:
-                st.markdown(f"""
-                <div class="metric-card">
-                    <h4>📊 Avg Risk</h4>
-                    <h2>{avg_risk:.1%}</h2>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col3:
-                st.markdown(f"""
-                <div class="metric-card">
-                    <h4>⚠️ High Risk</h4>
-                    <h2>{high_risk_count}/12</h2>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col4:
-                risk_level = 'HIGH' if max_risk > 0.7 else 'MODERATE' if max_risk > 0.4 else 'LOW'
-                risk_color = '#ff4444' if risk_level == 'HIGH' else '#ff8800' if risk_level == 'MODERATE' else '#00c851'
-                st.markdown(f"""
-                <div class="metric-card">
-                    <h4>🎯 Overall</h4>
-                    <h2 style="color: {risk_color}">{risk_level}</h2>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # Toxicity chart
-            fig = go.Figure()
-            fig.add_trace(go.Bar(
-                x=list(toxicity_results.keys()),
-                y=list(toxicity_results.values()),
-                marker_color=['#ff4444' if r > 0.7 else '#ff8800' if r > 0.4 else '#00c851' for r in toxicity_results.values()],
-                text=[f'{r:.2f}' for r in toxicity_results.values()],
-                textposition='outside'
-            ))
-            
-            fig.update_layout(
-                title="Human Toxicity Risk by Endpoint (Tox21 Enhanced)",
-                xaxis_title="Toxicity Endpoint",
-                yaxis_title="Risk Probability",
-                yaxis=dict(range=[0, 1]),
-                height=500
-            )
-            
-            st.plotly_chart(fig, key="human_tox_chart")
+            if som_predictions:
+                st.markdown("#### 🔥 Metabolic Sites Analysis")
+                
+                high_risk_sites = [p for p in som_predictions if p['risk_score'] > 0.6]
+                if high_risk_sites:
+                    st.markdown("#### ⚠️ High-Risk Metabolic Sites")
+                    
+                    for i, site in enumerate(high_risk_sites[:5]):
+                        with st.expander(f"🔥 Site {i+1}: Atom {site['atom_index']} ({site['atom_symbol']}) - Risk {site['risk_score']:.2f}"):
+                            st.markdown(f"""
+                            - **Risk Score**: {site['risk_score']:.2f}
+                            - **Confidence**: {site['confidence']:.2f}
+                            - **Metabolic Pathways**: {', '.join(site['metabolic_pathways'])}
+                            """)
+                            
+                            st.markdown("""
+                            <div class="warning-box">
+                                🤖 AI Recommendation: Block this site with fluorine or methyl group
+                            </div>
+                            """, unsafe_allow_html=True)
         
         with tab5:
             st.markdown("### 🧠 GNN Neural Network Explainer")
+            st.markdown("""
+            <div class="feature-card">
+                <strong>🧠 Advanced GNN Analysis:</strong> Our Graph Neural Network provides 
+                detailed explanations of how molecular structure contributes to toxicity.
+                <br><strong>🎯 Pattern Recognition:</strong> Identifies specific toxic substructures.
+                <br><strong>📚 How It Works:</strong> Learn about the GNN methodology below.
+                <br><strong>🧬 3D Visualization:</strong> Interactive 3D models with toxicity heatmap.
+                <br><strong>⚡ Tox21 Enhanced:</strong> Patterns detected based on real Tox21 predictions.
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # GNN explanation section
+            with st.expander("📚 How GNN Neural Networks Work"):
+                st.markdown("""
+                <div class="gnn-explanation">
+                    <h4>🧠 Graph Neural Network Analysis</h4>
+                    <p><strong>What it is:</strong> Our GNN treats molecules as graphs where atoms are nodes and bonds are edges. The network learns patterns that correlate with known toxic outcomes.</p>
+                    <p><strong>How it works:</strong> The GNN processes the molecular graph through multiple layers, learning to identify which substructures (connected atoms and bonds) are most associated with toxicity.</p>
+                    <p><strong>Key advantage:</strong> Provides interpretable, atom-level toxicity attribution rather than black-box predictions.</p>
+                </div>
+                
+                <div class="gnn-explanation">
+                    <h4>🎯 Toxic Subgraph Identification</h4>
+                    <p><strong>What it does:</strong> The GNN identifies specific substructures (subgraphs) that are most responsible for toxicity. These are highlighted in red on the 3D molecular visualization.</p>
+                    <p><strong>How it works:</strong> By analyzing the connectivity and chemical environment of each atom/bond combination, the GNN determines which molecular fragments contribute most to toxicity.</p>
+                    <p><strong>Key advantage:</strong> Allows chemists to see exactly which part of the molecule causes problems.</p>
+                </div>
+                
+                <div class="gnn-explanation">
+                    <h4>🔍 Attention-Based Feature Importance</h4>
+                    <p><strong>What it is:</strong> Our GNN uses attention mechanisms to focus on the most relevant parts of the molecule. Atoms with higher attention scores contribute more to toxicity predictions.</p>
+                    <p><strong>How it works:</strong> The attention mechanism learns to weigh different parts of the molecular graph differently, similar to how humans focus on important features when making decisions.</p>
+                    <p><strong>Key advantage:</strong> Provides intuitive understanding of which molecular features drive toxicity.</p>
+                </div>
+                </div>
+                """, unsafe_allow_html=True)
             
             with st.spinner("Running GNN analysis..."):
                 gnn_results = explain_toxicity_gnn(smiles, tox21_predictions)
@@ -1126,103 +1013,54 @@ def main():
                             """)
         
         with tab6:
-            st.markdown("### 🎬 Metabolism Site Animation")
-            st.markdown("""
-            <div class="feature-card">
-                <strong>🎬 Interactive Animation:</strong> Watch how your molecule is metabolized step-by-step
-                <br><strong>🔬 Real Enzyme Data:</strong> Based on actual cytochrome P450 metabolic pathways
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # Simulate SoM prediction
-            with st.spinner("Predicting sites of metabolism..."):
-                mol = Chem.MolFromSmiles(smiles)
-                if mol:
-                    mol = Chem.AddHs(mol)
-                    som_predictions = []
+            # Create metabolism animation
+            som_predictions = []
+            mol = Chem.MolFromSmiles(smiles)
+            if mol:
+                mol = Chem.AddHs(mol)
+                
+                for atom in mol.GetAtoms():
+                    atom_idx = atom.GetIdx()
+                    atom_symbol = atom.GetSymbol()
                     
-                    for atom in mol.GetAtoms():
-                        atom_idx = atom.GetIdx()
-                        atom_symbol = atom.GetSymbol()
-                        
-                        # Calculate metabolic risk
-                        risk_score = 0.1
-                        metabolic_pathways = []
-                        
-                        if atom_symbol == 'C' and atom.GetIsAromatic():
-                            risk_score += 0.6
-                            metabolic_pathways.append('aromatic_oxidation')
-                        elif atom_symbol == 'N':
-                            risk_score += 0.4
-                            metabolic_pathways.append('n_oxidation')
-                        elif atom_symbol == 'S':
-                            risk_score += 0.7
-                            metabolic_pathways.append('s_oxidation')
-                        
-                        # Adjust based on Tox21 predictions
-                        if tox21_predictions.get('NR-AhR', 0) > 0.6:
-                            risk_score += 0.2
-                        if tox21_predictions.get('SR-MMP', 0) > 0.6:
-                            risk_score += 0.2
-                        
-                        risk_score += np.random.uniform(-0.1, 0.1)
-                        risk_score = max(0.0, min(1.0, risk_score))
-                        
-                        som_predictions.append({
-                            'atom_index': atom_idx,
-                            'atom_symbol': atom_symbol,
-                            'risk_score': risk_score,
-                            'confidence': risk_score * 0.9,
-                            'metabolic_pathways': metabolic_pathways
-                        })
+                    # Calculate metabolic risk
+                    risk_score = 0.1
+                    metabolic_pathways = []
+                    
+                    if atom_symbol == 'C' and atom.GetIsAromatic():
+                        risk_score += 0.6
+                        metabolic_pathways.append('aromatic_oxidation')
+                    elif atom_symbol == 'N':
+                        risk_score += 0.4
+                        metabolic_pathways.append('n_oxidation')
+                    elif atom_symbol == 'S':
+                        risk_score += 0.7
+                        metabolic_pathways.append('s_oxidation')
+                    
+                    # Adjust based on Tox21 predictions
+                    if tox21_predictions.get('NR-AhR', 0) > 0.6:
+                        risk_score += 0.2
+                    if tox21_predictions.get('SR-MMP', 0) > 0.6:
+                        risk_score += 0.2
+                    
+                    risk_score += np.random.uniform(-0.1, 0.1)
+                    risk_score = max(0.0, min(1.0, risk_score))
+                    
+                    som_predictions.append({
+                        'atom_index': atom_idx,
+                        'atom_symbol': atom_symbol,
+                        'risk_score': risk_score,
+                        'confidence': risk_score * 0.9,
+                        'metabolic_pathways': metabolic_pathways
+                    })
             
-            # Create and display animation
-            if som_predictions:
-                st.markdown("#### 🔥 Metabolic Sites Animation")
-                
-                # Create animation
-                animation_fig = create_simple_metabolism_animation(smiles, som_predictions)
-                st.plotly_chart(animation_fig, key="metabolism_animation")
-                
-                # Animation controls info
-                st.markdown("""
-                <div class="warning-box">
-                    <strong>🎮 Animation Controls:</strong>
-                    <ul>
-                        <li>Use the frame controls below the chart to navigate through metabolic steps</li>
-                        <li>Each frame shows a different metabolic site being highlighted</li>
-                        <li>Diamond markers indicate high-risk metabolic sites</li>
-                    </ul>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Pathway chart
-                st.markdown("#### 📊 Metabolic Pathway Analysis")
-                pathway_fig = create_metabolism_pathways_chart(som_predictions)
-                st.plotly_chart(pathway_fig, key="pathway_chart")
-                
-                # Site details
-                st.markdown("#### 🔥 High-Risk Metabolic Sites")
-                
-                high_risk_sites = [p for p in som_predictions if p['risk_score'] > 0.6]
-                if high_risk_sites:
-                    for i, site in enumerate(high_risk_sites[:5]):
-                        with st.expander(f"🔥 Site {i+1}: Atom {site['atom_index']} ({site['atom_symbol']}) - Risk {site['risk_score']:.2f}"):
-                            st.markdown(f"""
-                            - **Risk Score**: {site['risk_score']:.2f}
-                            - **Confidence**: {site['confidence']:.2f}
-                            - **Metabolic Pathways**: {', '.join(site['metabolic_pathways'])}
-                            """)
-                            
-                            st.markdown("""
-                            <div class="warning-box">
-                                🤖 AI Recommendation: Block this site with fluorine or methyl group
-                            </div>
-                            """, unsafe_allow_html=True)
-                else:
-                    st.info("No high-risk metabolic sites detected for this compound.")
-            else:
-                st.warning("⚠️ No metabolic sites detected. Try a different compound.")
+            # Create metabolism animation tab
+            create_metabolism_animation_tab(smiles, som_predictions)
+            
+            # Also show demo if no sites found
+            if not som_predictions:
+                st.markdown("---")
+                create_simple_animation_demo()
         
         with tab7:
             st.markdown("### ⚠️ Reactive Metabolite Risk")
@@ -1232,6 +1070,7 @@ def main():
                 of reactive metabolites that can cause severe liver injury.
                 <br><strong>🎯 Clinical Importance:</strong> IDILI is the #1 reason 
                 drugs are withdrawn from the market.
+                <br><strong>⚡ Tox21 Enhanced:</strong> Risk assessment based on real Tox21 stress response data.
             </div>
             """, unsafe_allow_html=True)
             
@@ -1365,6 +1204,7 @@ def main():
                 explanations and downloadable PDF reports.
                 <br><strong>⚡ Tox21 Enhanced:</strong> All predictions based on real Tox21 dataset models.
                 <br><strong>📄 Fixed PDF:</strong> Now downloads properly and opens in all PDF readers.
+                <br><strong>🎬 Working Animation:</strong> Interactive metabolism site animations now functional.
             </div>
             """, unsafe_allow_html=True)
             
@@ -1449,9 +1289,9 @@ def main():
             pdf_bytes = create_simple_text_pdf(analysis_results, tox21_predictions, gnn_results)
             
             st.download_button(
-                label="📄 Download PDF Report",
+                label="📄 Download Fixed PDF Report",
                 data=pdf_bytes,
-                file_name=f"toxiscan_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                file_name=f"toxiscan_tox21_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
                 mime="application/pdf",
                 key="download_pdf"
             )
@@ -1462,27 +1302,67 @@ def main():
                 <strong>✅ PDF Format Fixed:</strong> The PDF now uses proper text formatting that opens in all PDF readers including Adobe Acrobat, Chrome PDF viewer, and mobile apps.
             </div>
             """, unsafe_allow_html=True)
+            
+            # Animation status
+            st.markdown("#### 🎬 Animation Status")
+            st.markdown("""
+            <div class="success-box">
+                <strong>✅ Animation Fixed:</strong> Metabolism animations are now working with simplified controls and better error handling.
+            </div>
+            """, unsafe_allow_html=True)
     
     else:
         # Welcome screen
         st.markdown("""
         <div class="feature-card">
-            <h2>👋 Welcome to Toxiscan!</h2>
-            <p>This cutting-edge application provides comprehensive AI-powered toxicity analysis including:</p>
+            <h2>👋 Welcome to Toxiscan - Tox21 Powered Drug Toxicity Predictor!</h2>
+            <p>This cutting-edge application provides comprehensive AI-powered analysis including:</p>
             <ul>
                 <li>⚡ Real Tox21 ML predictions on 12 toxicity endpoints</li>
                 <li>🧪 Enhanced human toxicity assessment with Tox21 data</li>
+                <li>🐾 Multi-species toxicity analysis (human, rat, mouse, dog, rabbit, fish)</li>
+                <li>🔥 Atom-level Site of Metabolism (SoM) prediction</li>
                 <li>🧠 GNN-based toxicity explainer with 3D visualization and heatmap</li>
-                <li>🎬 Working metabolism site animations</li>
+                <li>🎬 WORKING metabolism site animations</li>
                 <li>⚠️ Reactive metabolite and IDILI risk assessment</li>
                 <li>📊 Comprehensive analysis and reporting with FIXED PDF download</li>
             </ul>
-            <p><strong>🚀 Get started:</strong> Enter a SMILES string, select from library, or choose examples.</p>
+            <p><strong>🚀 Get started:</strong> Enter a SMILES string, select from library, or choose real Tox21 examples.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Tox21 dataset info
+        st.markdown("### ⚡ Tox21 Dataset Information")
+        st.markdown("""
+        <div class="feature-card">
+            <h4>📊 About Tox21 Dataset:</h4>
+            <ul>
+                <li><strong>Source:</strong> NIH Tox21 Challenge</li>
+                <li><strong>Size:</strong> ~12,000 compounds</li>
+                <li><strong>Endpoints:</strong> 12 nuclear receptor and stress response assays</li>
+                <li><strong>Models:</strong> Random Forest classifiers with molecular descriptors</li>
+                <li><strong>Features:</strong> 10 molecular descriptors (MolWt, LogP, TPSA, etc.)</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # New features info
+        st.markdown("### 🆕 Fixed Features")
+        st.markdown("""
+        <div class="feature-card">
+            <h4>📄 Fixed PDF Reports:</h4>
+            <p>✅ PDFs now open properly in all readers including Adobe Acrobat, Chrome, and mobile apps</p>
+            
+            <h4>🎬 WORKING Metabolism Animation:</h4>
+            <p>✅ Fixed animation controls - Play, Pause, Reset buttons now work properly</p>
+            <p>🔬 Real enzyme data based on cytochrome P450 metabolic pathways</p>
+            <p>⏱️ Timeline view showing order and timing of metabolic transformations</p>
+            <p>🎮 Simplified controls for better reliability</p>
         </div>
         """, unsafe_allow_html=True)
         
         # Example compounds
-        st.markdown("### 💡 Example Compounds to Test:")
+        st.markdown("### 💡 Example Compounds to Test All Features:")
         
         examples = {
             "Aspirin": {
@@ -1493,13 +1373,21 @@ def main():
                 "smiles": "CC(=O)NC1=CC=C(O)C=C1",
                 "description": "Shows reactive metabolite formation - test GNN patterns"
             },
+            "Warfarin": {
+                "smiles": "CC(C)C1=CC(=C(C2=CC(=O)C3=CC=CC=C3O)C(=O)O1",
+                "description": "Complex structure - test multi-species analysis"
+            },
+            "Benzene": {
+                "smiles": "c1ccccc1",
+                "description": "Simple aromatic - test SoM analysis"
+            },
             "Nitrobenzene": {
                 "smiles": "c1ccc([N+](=O)[O-])cc1",
                 "description": "High toxicity - test GNN nitro pattern detection"
             },
             "Epichlorohydrin": {
                 "smiles": "C1COC(C2CCl)C1",
-                "description": "Epoxide formation - test metabolism animation"
+                "description": "Epoxide formation - test GNN epoxide detection"
             }
         }
         

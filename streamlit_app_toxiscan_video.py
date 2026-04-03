@@ -1,5 +1,5 @@
 """
-Toxiscan with Fixed Animation and Clean UI
+Toxiscan with Organ Metabolism Video and Fixed Charts
 Advanced Drug Toxicity & Metabolic Fate Predictor with Real Tox21 Integration
 """
 
@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 # Import modules
 from tox21_integration import Tox21Dataset
 from pdf_fix import create_simple_text_pdf
+from organ_metabolism_video import create_organ_metabolism_tab, create_simple_organ_demo
 
 # Suppress warnings
 warnings.filterwarnings('ignore')
@@ -733,12 +734,13 @@ def main():
             tox21_predictions = tox21.predict_toxicity(smiles, tox21_models)
         
         # Create tabs
-        tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+        tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
             "⚡ Tox21 Predictions",
             "🧪 Human Toxicity",
             "🐾 Multi-Species Analysis",
             "🧠 GNN Explainer",
             "🎬 Metabolism Animation",
+            "🏥 Organ Metabolism Video",
             "⚠️ Reactive Metabolite Risk",
             "📊 Comprehensive Report"
         ])
@@ -790,7 +792,7 @@ def main():
                 </div>
                 """, unsafe_allow_html=True)
             
-            # Tox21 endpoint chart
+            # Tox21 endpoint chart with error handling
             try:
                 fig = go.Figure()
                 fig.add_trace(go.Bar(
@@ -868,25 +870,33 @@ def main():
                 </div>
                 """, unsafe_allow_html=True)
             
-            # Toxicity chart
-            fig = go.Figure()
-            fig.add_trace(go.Bar(
-                x=list(toxicity_results.keys()),
-                y=list(toxicity_results.values()),
-                marker_color=['#ff4444' if r > 0.7 else '#ff8800' if r > 0.4 else '#00c851' for r in toxicity_results.values()],
-                text=[f'{r:.2f}' for r in toxicity_results.values()],
-                textposition='outside'
-            ))
-            
-            fig.update_layout(
-                title="Human Toxicity Risk by Endpoint (Tox21 Enhanced)",
-                xaxis_title="Toxicity Endpoint",
-                yaxis_title="Risk Probability",
-                yaxis=dict(range=[0, 1]),
-                height=500
-            )
-            
-            st.plotly_chart(fig, key="human_tox_chart")
+            # Toxicity chart with error handling
+            try:
+                fig = go.Figure()
+                fig.add_trace(go.Bar(
+                    x=list(toxicity_results.keys()),
+                    y=list(toxicity_results.values()),
+                    marker_color=['#ff4444' if r > 0.7 else '#ff8800' if r > 0.4 else '#00c851' for r in toxicity_results.values()],
+                    text=[f'{r:.2f}' for r in toxicity_results.values()],
+                    textposition='outside'
+                ))
+                
+                fig.update_layout(
+                    title="Human Toxicity Risk by Endpoint (Tox21 Enhanced)",
+                    xaxis_title="Toxicity Endpoint",
+                    yaxis_title="Risk Probability",
+                    yaxis=dict(range=[0, 1]),
+                    height=500
+                )
+                
+                st.plotly_chart(fig, key="human_tox_chart")
+            except Exception as e:
+                st.error(f"Error creating Human Toxicity chart: {str(e)}")
+                # Fallback display
+                st.markdown("#### Human Toxicity Predictions (Fallback Display)")
+                for endpoint, prob in toxicity_results.items():
+                    color = '🔴' if prob > 0.7 else '🟡' if prob > 0.4 else '🟢'
+                    st.markdown(f"{color} **{endpoint}**: {prob:.3f}")
         
         with tab3:
             st.markdown("### 🐾 Multi-Species Analysis")
@@ -967,76 +977,6 @@ def main():
             st.dataframe(df_comparison, use_container_width=True)
         
         with tab4:
-            st.markdown("### 🧪 Enhanced Human Toxicity Prediction")
-            
-            # Use Tox21 predictions as base
-            toxicity_results = tox21_predictions.copy()
-            
-            # Display results
-            col1, col2, col3, col4 = st.columns(4)
-            
-            max_risk = max(toxicity_results.values())
-            avg_risk = np.mean(list(toxicity_results.values()))
-            high_risk_count = sum(1 for v in toxicity_results.values() if v > 0.5)
-            
-            with col1:
-                risk_color = '#ff4444' if max_risk > 0.7 else '#ff8800' if max_risk > 0.4 else '#00c851'
-                st.markdown(f"""
-                <div class="metric-card">
-                    <h4>🔴 Max Risk</h4>
-                    <h2 style="color: {risk_color}">
-                        {max_risk:.1%}
-                    </h2>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col2:
-                st.markdown(f"""
-                <div class="metric-card">
-                    <h4>📊 Avg Risk</h4>
-                    <h2>{avg_risk:.1%}</h2>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col3:
-                st.markdown(f"""
-                <div class="metric-card">
-                    <h4>⚠️ High Risk</h4>
-                    <h2>{high_risk_count}/12</h2>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col4:
-                risk_level = 'HIGH' if max_risk > 0.7 else 'MODERATE' if max_risk > 0.4 else 'LOW'
-                risk_color = '#ff4444' if risk_level == 'HIGH' else '#ff8800' if risk_level == 'MODERATE' else '#00c851'
-                st.markdown(f"""
-                <div class="metric-card">
-                    <h4>🎯 Overall</h4>
-                    <h2 style="color: {risk_color}">{risk_level}</h2>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # Toxicity chart
-            fig = go.Figure()
-            fig.add_trace(go.Bar(
-                x=list(toxicity_results.keys()),
-                y=list(toxicity_results.values()),
-                marker_color=['#ff4444' if r > 0.7 else '#ff8800' if r > 0.4 else '#00c851' for r in toxicity_results.values()],
-                text=[f'{r:.2f}' for r in toxicity_results.values()],
-                textposition='outside'
-            ))
-            
-            fig.update_layout(
-                title="Human Toxicity Risk by Endpoint (Tox21 Enhanced)",
-                xaxis_title="Toxicity Endpoint",
-                yaxis_title="Risk Probability",
-                yaxis=dict(range=[0, 1]),
-                height=500
-            )
-            
-            st.plotly_chart(fig, key="human_tox_chart")
-        
-        with tab5:
             st.markdown("### 🧠 GNN Neural Network Explainer")
             
             with st.spinner("Running GNN analysis..."):
@@ -1125,7 +1065,7 @@ def main():
                             - **Prevention**: {pattern.get('prevention', 'No prevention strategies available')}
                             """)
         
-        with tab6:
+        with tab5:
             st.markdown("### 🎬 Metabolism Site Animation")
             st.markdown("""
             <div class="feature-card">
@@ -1223,6 +1163,10 @@ def main():
                     st.info("No high-risk metabolic sites detected for this compound.")
             else:
                 st.warning("⚠️ No metabolic sites detected. Try a different compound.")
+        
+        with tab6:
+            # Create organ metabolism video
+            create_organ_metabolism_tab(smiles, tox21_predictions)
         
         with tab7:
             st.markdown("### ⚠️ Reactive Metabolite Risk")
@@ -1365,6 +1309,7 @@ def main():
                 explanations and downloadable PDF reports.
                 <br><strong>⚡ Tox21 Enhanced:</strong> All predictions based on real Tox21 dataset models.
                 <br><strong>📄 Fixed PDF:</strong> Now downloads properly and opens in all PDF readers.
+                <br><strong>🎬 Organ Video:</strong> New human organ metabolism animation.
             </div>
             """, unsafe_allow_html=True)
             
@@ -1472,14 +1417,20 @@ def main():
             <ul>
                 <li>⚡ Real Tox21 ML predictions on 12 toxicity endpoints</li>
                 <li>🧪 Enhanced human toxicity assessment with Tox21 data</li>
+                <li>🐾 Multi-species toxicity analysis</li>
                 <li>🧠 GNN-based toxicity explainer with 3D visualization and heatmap</li>
                 <li>🎬 Working metabolism site animations</li>
+                <li>🏥 NEW: Human organ metabolism video animation</li>
                 <li>⚠️ Reactive metabolite and IDILI risk assessment</li>
                 <li>📊 Comprehensive analysis and reporting with FIXED PDF download</li>
             </ul>
             <p><strong>🚀 Get started:</strong> Enter a SMILES string, select from library, or choose examples.</p>
         </div>
         """, unsafe_allow_html=True)
+        
+        # Demo section
+        st.markdown("### 🎬 New Feature: Organ Metabolism Video")
+        create_simple_organ_demo()
         
         # Example compounds
         st.markdown("### 💡 Example Compounds to Test:")
